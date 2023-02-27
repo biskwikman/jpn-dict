@@ -6,4 +6,5 @@ wget ftp://ftp.edrdg.org/pub/Nihongo/kanjidic2.xml.gz
 wget https://raw.githubusercontent.com/echamudi/kanji-data-media/master/language-data/ka_data.csv
 
 gunzip JMdict_e.gz JMnedict.xml.gz kanjidic2.xml.gz
-mv JMdict_e JMnedict.xml kanjidic2.xml ka_data.csv ./sourceFolder
+mkdir dict_data
+mv JMdict_e JMnedict.xml kanjidic2.xml ka_data.csv ./dict_data
