@@ -207,9 +207,42 @@ fn main() {
             entries.push(entry);
         }
     }
-    // println!("{entries:?}");
     let mut conn = Connection::open("./jmdict.db").unwrap();
 
+    create_tables(&conn);
+    add_entry_rows(&mut conn, entries);
+
+    // stmt.query(rusqlite::params_from_iter(entry_params.iter()));
+    // tx.execute(
+    //     "INSERT INTO jmdict_e_entries (ent_seq) VALUES (?1);",
+    //     params![entry.ent_seq],
+    // )
+    // .unwrap();
+
+    // for k_ele in entry.k_ele.iter() {
+    //     tx.execute(
+    //         "INSERT INTO jmdict_e_k_ele (entry_id, keb) VALUES ((SELECT id FROM jmdict_e_entries WHERE ent_seq=?1), ?2);",
+    //         params![entry.ent_seq, k_ele.keb],
+    //     )
+    //     .unwrap();
+    // }
+    // }
+}
+
+fn add_entry_rows(conn: &mut Connection, entries: Vec<Entry>) {
+    let tx = conn.transaction().unwrap();
+    {
+        let mut stmt = tx
+            .prepare("INSERT INTO jmdict_e_entries (ent_seq) VALUES (?);")
+            .unwrap();
+        for entry in entries.iter() {
+            stmt.execute([entry.ent_seq]).unwrap();
+        }
+    }
+    tx.commit().unwrap();
+}
+
+fn create_tables(conn: &Connection) {
     conn.execute_batch(
         "CREATE TABLE jmdict_e_entries ( \
             id INTEGER PRIMARY KEY, \
@@ -224,27 +257,4 @@ fn main() {
         );",
     )
     .unwrap();
-
-    let tx = conn.transaction().unwrap();
-    // TRY TO BUILD ALL INSERT STATEMENT IN SINGLE STRING HERE
-    let mut entry_insert = String::new();
-    for (i, entry) in entries.iter().enumerate() {
-        let new_line = format!("INSERT INTO jmdict_e_entries (ent_seq) VALUES (?{});", i);
-        entry_insert.push_str(&new_line);
-    }
-    tx.execute(
-        "INSERT INTO jmdict_e_entries (ent_seq) VALUES (?1);",
-        params![entry.ent_seq],
-    )
-    .unwrap();
-
-    // for k_ele in entry.k_ele.iter() {
-    //     tx.execute(
-    //         "INSERT INTO jmdict_e_k_ele (entry_id, keb) VALUES ((SELECT id FROM jmdict_e_entries WHERE ent_seq=?1), ?2);",
-    //         params![entry.ent_seq, k_ele.keb],
-    //     )
-    //     .unwrap();
-    // }
-    // }
-    tx.commit().unwrap();
 }
