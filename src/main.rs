@@ -1,9 +1,10 @@
 use roxmltree::{Document, ParsingOptions};
+use rusqlite::{params, Connection, Result};
 use std::fs;
 
 #[derive(Debug)]
 struct Entry {
-    ent_seq: Vec<i32>,
+    ent_seq: i64,
     k_ele: Vec<KEle>,
     r_ele: Vec<REle>,
     sense: Vec<Sense>,
@@ -60,20 +61,26 @@ fn main() {
         // For each entry
         if node.has_tag_name("entry") {
             // Create vector for ids
-            let mut ent_seq_vec: Vec<i32> = vec![];
+            let mut ent_seq_vec: i64 = 0;
 
             // Create vector for k_ele
             let mut k_ele_vec: Vec<KEle> = vec![];
             let mut r_ele_vec: Vec<REle> = vec![];
+            let mut sense_vec: Vec<Sense> = vec![];
 
             for node in node.children() {
                 if node.has_tag_name("ent_seq") {
-                    ent_seq_vec.push(
-                        node.text()
-                            .expect("error finding ent_seq text")
-                            .parse::<i32>()
-                            .unwrap(),
-                    );
+                    ent_seq_vec = node
+                        .text()
+                        .expect("error finding ent_seq text")
+                        .parse()
+                        .unwrap();
+                    // ent_seq_vec.push(
+                    //     node.text()
+                    //         .expect("error finding ent_seq text")
+                    //         .parse::<i64>()
+                    //         .unwrap(),
+                    // );
                 }
                 if node.has_tag_name("k_ele") {
                     let mut keb = String::new();
@@ -159,8 +166,35 @@ fn main() {
                             field = node.text().expect("error finding field text").to_string();
                         } else if node.has_tag_name("misc") {
                             misc = node.text().expect("error finding misc text").to_string();
+                        } else if node.has_tag_name("lsource") {
+                            if let Some(t) = node.text() {
+                                lsource = t.to_string();
+                            }
+                        } else if node.has_tag_name("dial") {
+                            dial = node.text().expect("error finding dial text").to_string();
+                        } else if node.has_tag_name("gloss") {
+                            gloss.push(node.text().expect("error finding gloss text").to_string());
+                        } else if node.has_tag_name("pri") {
+                            pri = node.text().expect("error finding pri text").to_string();
+                        } else if node.has_tag_name("s_inf") {
+                            s_inf = node.text().expect("error finding s_inf").to_string();
                         }
                     }
+                    let sense = Sense {
+                        stagk,
+                        stagr,
+                        xref,
+                        ant,
+                        pos,
+                        field,
+                        misc,
+                        lsource,
+                        dial,
+                        gloss,
+                        pri,
+                        s_inf,
+                    };
+                    sense_vec.push(sense);
                 }
             }
 
@@ -168,9 +202,49 @@ fn main() {
                 ent_seq: ent_seq_vec,
                 k_ele: k_ele_vec,
                 r_ele: r_ele_vec,
+                sense: sense_vec,
             };
             entries.push(entry);
         }
     }
-    println!("{entries:?}");
+    // println!("{entries:?}");
+    let mut conn = Connection::open("./jmdict.db").unwrap();
+
+    conn.execute_batch(
+        "CREATE TABLE jmdict_e_entries ( \
+            id INTEGER PRIMARY KEY, \
+            ent_seq INTEGER \
+        );
+        CREATE TABLE jmdict_e_k_ele (
+            id INTEGER PRIMARY KEY,
+            entry_id INTEGER NOT NULL,
+            keb TEXT,
+            FOREIGN KEY (entry_id)
+                REFERENCES jmdict_e_entries (id)  
+        );",
+    )
+    .unwrap();
+
+    let tx = conn.transaction().unwrap();
+    // TRY TO BUILD ALL INSERT STATEMENT IN SINGLE STRING HERE
+    let mut entry_insert = String::new();
+    for (i, entry) in entries.iter().enumerate() {
+        let new_line = format!("INSERT INTO jmdict_e_entries (ent_seq) VALUES (?{});", i);
+        entry_insert.push_str(&new_line);
+    }
+    tx.execute(
+        "INSERT INTO jmdict_e_entries (ent_seq) VALUES (?1);",
+        params![entry.ent_seq],
+    )
+    .unwrap();
+
+    // for k_ele in entry.k_ele.iter() {
+    //     tx.execute(
+    //         "INSERT INTO jmdict_e_k_ele (entry_id, keb) VALUES ((SELECT id FROM jmdict_e_entries WHERE ent_seq=?1), ?2);",
+    //         params![entry.ent_seq, k_ele.keb],
+    //     )
+    //     .unwrap();
+    // }
+    // }
+    tx.commit().unwrap();
 }
